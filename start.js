@@ -5,10 +5,11 @@ import { pipeline } from 'stream/promises';
 import { spawn } from 'child_process';
 import path from 'path';
 
-const TILES_DIR    = process.env.TILES_DIR    || '/opt/render/project/src/segments4';
+const TILES_DIR    = process.env.TILES_DIR    || path.join(process.cwd(), 'segments4');
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
-const BROUTER_JAR  = process.env.BROUTER_JAR  || '/opt/brouter/brouter.jar';
-const PROFILES_DIR = process.env.PROFILES_DIR || '/opt/brouter/profiles2';
+const BROUTER_DIR  = process.env.BROUTER_DIR  || path.join(process.cwd(), 'brouter');
+const BROUTER_JAR  = process.env.BROUTER_JAR  || path.join(BROUTER_DIR, 'brouter.jar');
+const PROFILES_DIR = process.env.PROFILES_DIR || path.join(BROUTER_DIR, 'profiles2');
 const BROUTER_PORT = parseInt(process.env.BROUTER_INTERNAL_PORT || '17777', 10);
 const JAVA_XMX     = process.env.JAVA_XMX || '900m';
 const JAVA_XMS     = process.env.JAVA_XMS || '256m';
