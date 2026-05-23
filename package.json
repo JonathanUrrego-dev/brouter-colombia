@@ -1,0 +1,11 @@
+{
+  "name": "brouter-server",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "upload-tiles": "node scripts/upload-tiles-to-r2.js"
+  },
+  "dependencies": {}
+}
