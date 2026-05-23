@@ -49,50 +49,70 @@ java -version || true
 echo "📥 Descargando BRouter JAR y perfiles..."
 mkdir -p "$BR_DIR/profiles2"
 
-# Download JAR using Node.js fetch (handles redirects reliably)
-# Try several sources in order
-JAR_URLS=(
-  "https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9-all.jar"
-  "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar"
-  "https://repo1.maven.org/maven2/de/cm/btools/brouter/1.7.9/brouter-1.7.9.jar"
-)
-
-jar_ok=0
-for url in "${JAR_URLS[@]}"; do
-  echo "⬇️  Intentando descargar JAR desde: $url"
-  node --input-type=module << JSEOF
+# Use Node.js to download the JAR (handles redirects + GitHub API)
+cat > /tmp/download-jar.mjs << 'JSEOF'
 import { createWriteStream } from 'fs';
+import { statSync } from 'fs';
 import { pipeline } from 'stream/promises';
-const url = '${url}';
-try {
-  const resp = await fetch(url, { redirect: 'follow' });
-  console.log('[jar-dl] HTTP', resp.status, 'desde', url);
-  if (!resp.ok) process.exit(1);
-  await pipeline(resp.body, createWriteStream('${BR_DIR}/brouter.jar'));
-  console.log('[jar-dl] Descarga completa');
-} catch(e) {
-  console.error('[jar-dl] Error:', e.message);
-  process.exit(1);
-}
-JSEOF
-  if [ $? -eq 0 ]; then
-    file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
-    if [ "$file_size" -gt 5000000 ]; then
-      echo "✅ JAR válido ($((file_size / 1000000))MB)"
-      jar_ok=1
-      break
-    else
-      echo "⚠️ Archivo demasiado pequeño: ${file_size} bytes"
-      rm -f "$BR_DIR/brouter.jar"
-    fi
-  else
-    echo "⚠️ Falló descarga desde $url"
-    rm -f "$BR_DIR/brouter.jar"
-  fi
-done
 
-if [ "$jar_ok" -ne 1 ]; then
-  echo "❌ No se pudo descargar un JAR válido. Abortando build."
+const outPath = process.argv[2];
+
+async function tryDownload(url, label) {
+  console.log(`[jar-dl] Intentando: ${label || url}`);
+  const resp = await fetch(url, {
+    redirect: 'follow',
+    headers: { 'User-Agent': 'render-build/1.0' }
+  });
+  console.log(`[jar-dl] HTTP ${resp.status}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  await pipeline(resp.body, createWriteStream(outPath));
+  const size = statSync(outPath).size;
+  if (size < 5_000_000) throw new Error(`Archivo demasiado pequeño: ${size} bytes`);
+  console.log(`[jar-dl] ✅ ${Math.round(size / 1024 / 1024)}MB descargados`);
+}
+
+// 1. Try GitHub API to get the real latest release URL
+try {
+  console.log('[jar-dl] Consultando GitHub API...');
+  const api = await fetch('https://api.github.com/repos/abrensch/brouter/releases/latest', {
+    headers: { 'User-Agent': 'render-build/1.0' }
+  });
+  if (api.ok) {
+    const rel = await api.json();
+    const asset = rel.assets?.find(a => a.name.endsWith('.jar'));
+    if (asset) {
+      console.log(`[jar-dl] Release: ${rel.tag_name}, asset: ${asset.name}`);
+      await tryDownload(asset.browser_download_url, asset.name);
+      process.exit(0);
+    } else {
+      console.warn('[jar-dl] No se encontró .jar en el release:', rel.tag_name);
+      console.warn('[jar-dl] Assets:', rel.assets?.map(a => a.name).join(', '));
+    }
+  } else {
+    console.warn('[jar-dl] GitHub API HTTP', api.status);
+  }
+} catch (e) {
+  console.warn('[jar-dl] GitHub API falló:', e.message);
+}
+
+// 2. Fallback to direct URLs
+const fallbacks = [
+  'https://github.com/abrensch/brouter/releases/latest/download/brouter.jar',
+];
+for (const url of fallbacks) {
+  try {
+    await tryDownload(url);
+    process.exit(0);
+  } catch (e) {
+    console.warn(`[jar-dl] ⚠️ ${e.message}`);
+  }
+}
+process.exit(1);
+JSEOF
+
+node /tmp/download-jar.mjs "$BR_DIR/brouter.jar"
+if [ $? -ne 0 ]; then
+  echo "❌ No se pudo descargar el JAR. Abortando build."
   exit 1
 fi
 
