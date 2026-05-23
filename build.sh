@@ -57,4 +57,6 @@ for profile in trekking fastbike mountainbike safety shortest; do
 done
 
 echo "✅ Build listo (archivos en $BR_DIR)."
-echo "Asegúrate de que tu Start script use BR_DIR='$BR_DIR' o lee env var BROUTER_DIR si lo prefieres."
+# Create .brouter-path file with absolute directory for Node.js
+echo "$BR_DIR" > "$PWD/.brouter-dir"
+echo "ℹ️  Información de BRouter guardada en .brouter-dir"

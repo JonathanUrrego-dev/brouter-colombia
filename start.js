@@ -1,13 +1,25 @@
 // start.js
-import { existsSync, statSync, createWriteStream } from 'fs';
+import { existsSync, readFileSync, statSync, createWriteStream } from 'fs';
 import { mkdir } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const TILES_DIR    = process.env.TILES_DIR    || path.join(process.cwd(), 'segments4');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Detect BROUTER_DIR from env, .brouter-dir file, or default
+let BROUTER_DIR = process.env.BROUTER_DIR;
+if (!BROUTER_DIR && existsSync(path.join(__dirname, '.brouter-dir'))) {
+  BROUTER_DIR = readFileSync(path.join(__dirname, '.brouter-dir'), 'utf-8').trim();
+}
+if (!BROUTER_DIR) {
+  // Fallback: assume it's in the working directory
+  BROUTER_DIR = path.join(__dirname, 'brouter');
+}
+
+const TILES_DIR    = process.env.TILES_DIR    || path.join(__dirname, 'segments4');
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
-const BROUTER_DIR  = process.env.BROUTER_DIR  || path.join(process.cwd(), 'brouter');
 const BROUTER_JAR  = process.env.BROUTER_JAR  || path.join(BROUTER_DIR, 'brouter.jar');
 const PROFILES_DIR = process.env.PROFILES_DIR || path.join(BROUTER_DIR, 'profiles2');
 const JAVA_BIN     = process.env.JAVA_BIN     || path.join(BROUTER_DIR, 'jre', 'bin', 'java');
