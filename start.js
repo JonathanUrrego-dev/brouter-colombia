@@ -92,7 +92,8 @@ export function launchBRouter() {
   const proc = spawn(JAVA_BIN, [
     `-Xmx${JAVA_XMX}`,
     `-Xms${JAVA_XMS}`,
-    '-jar', BROUTER_JAR,
+    '-cp', BROUTER_JAR,
+    'btools.server.RouteServer',
     TILES_DIR,
     PROFILES_DIR,
     PROFILES_DIR, // custom profile dir (reuse same dir)
