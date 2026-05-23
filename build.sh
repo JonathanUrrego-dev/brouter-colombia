@@ -49,7 +49,34 @@ java -version || true
 echo "📥 Descargando BRouter JAR y perfiles..."
 mkdir -p "$BR_DIR/profiles2"
 
-curl -sL "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar" -o "$BR_DIR/brouter.jar"
+# Download JAR with validation and retry
+JAR_URLS=(
+  "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar"
+  "https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9-all.jar"
+)
+
+jar_ok=0
+for url in "${JAR_URLS[@]}"; do
+  echo "⬇️  Intentando descargar JAR desde: $url"
+  if curl -sSL --retry 3 --output "$BR_DIR/brouter.jar" "$url"; then
+    # Validate it's a real JAR (should start with PK in hex = 504b)
+    if file "$BR_DIR/brouter.jar" | grep -q 'Zip archive'; then
+      echo "✅ JAR válido descargado"
+      jar_ok=1
+      break
+    else
+      echo "⚠️ Descarga no es un JAR válido (Zip archive). Probando siguiente URL..."
+      rm -f "$BR_DIR/brouter.jar"
+    fi
+  else
+    echo "⚠️ Falló descarga desde $url"
+  fi
+done
+
+if [ "$jar_ok" -ne 1 ]; then
+  echo "❌ No se pudo descargar un JAR válido. Abortando build."
+  exit 1
+fi
 
 PROFILES_BASE="https://raw.githubusercontent.com/abrensch/brouter/master/misc/profiles2"
 for profile in trekking fastbike mountainbike safety shortest; do
