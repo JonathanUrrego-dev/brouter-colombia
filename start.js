@@ -10,6 +10,7 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
 const BROUTER_DIR  = process.env.BROUTER_DIR  || path.join(process.cwd(), 'brouter');
 const BROUTER_JAR  = process.env.BROUTER_JAR  || path.join(BROUTER_DIR, 'brouter.jar');
 const PROFILES_DIR = process.env.PROFILES_DIR || path.join(BROUTER_DIR, 'profiles2');
+const JAVA_BIN     = process.env.JAVA_BIN     || path.join(BROUTER_DIR, 'jre', 'bin', 'java');
 const BROUTER_PORT = parseInt(process.env.BROUTER_INTERNAL_PORT || '17777', 10);
 const JAVA_XMX     = process.env.JAVA_XMX || '900m';
 const JAVA_XMS     = process.env.JAVA_XMS || '256m';
@@ -72,7 +73,7 @@ export async function downloadAllTiles() {
 export function launchBRouter() {
   console.log(`[start] 🚀 Lanzando BRouter en puerto interno ${BROUTER_PORT}...`);
 
-  const proc = spawn('java', [
+  const proc = spawn(JAVA_BIN, [
     `-Xmx${JAVA_XMX}`,
     `-Xms${JAVA_XMS}`,
     '-cp', BROUTER_JAR,
