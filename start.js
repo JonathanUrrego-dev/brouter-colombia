@@ -78,12 +78,16 @@ export async function downloadAllTiles() {
 
 export function launchBRouter() {
   console.log(`[start] 🚀 Lanzando BRouter en puerto interno ${BROUTER_PORT}...`);
+  console.log(`[start] ℹ️  JAR: ${BROUTER_JAR}`);
+  console.log(`[start] ℹ️  TILES_DIR: ${TILES_DIR}`);
+  console.log(`[start] ℹ️  PROFILES_DIR: ${PROFILES_DIR}`);
+  console.log(`[start] ℹ️  JAVA_BIN: ${JAVA_BIN}`);
 
+  // Try with -jar first, then fallback to -cp if needed
   const proc = spawn(JAVA_BIN, [
     `-Xmx${JAVA_XMX}`,
     `-Xms${JAVA_XMS}`,
-    '-cp', BROUTER_JAR,
-    'btools.server.RouteServer',
+    '-jar', BROUTER_JAR,
     TILES_DIR,
     PROFILES_DIR,
     PROFILES_DIR, // custom profile dir (reuse same dir)
@@ -94,6 +98,7 @@ export function launchBRouter() {
 
   proc.on('error', err => {
     console.error('[start] ❌ Error al lanzar Java:', err.message);
+    console.error('[start] ℹ️  Verifica que JAVA_BIN existe y el JAR contiene un Main-Class o btools.server.RouteServer');
     process.exit(1);
   });
 
