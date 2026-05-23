@@ -49,72 +49,66 @@ java -version || true
 echo "📥 Descargando BRouter JAR y perfiles..."
 mkdir -p "$BR_DIR/profiles2"
 
-# Use Node.js to download the JAR (handles redirects + GitHub API)
+# Use Node.js to find and download the release ZIP from GitHub API
 cat > /tmp/download-jar.mjs << 'JSEOF'
 import { createWriteStream } from 'fs';
 import { statSync } from 'fs';
 import { pipeline } from 'stream/promises';
 
-const outPath = process.argv[2];
+const outDir = process.argv[2]; // e.g. /opt/render/project/src/brouter
+const zipPath = '/tmp/brouter-release.zip';
 
-async function tryDownload(url, label) {
-  console.log(`[jar-dl] Intentando: ${label || url}`);
-  const resp = await fetch(url, {
-    redirect: 'follow',
-    headers: { 'User-Agent': 'render-build/1.0' }
-  });
-  console.log(`[jar-dl] HTTP ${resp.status}`);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  await pipeline(resp.body, createWriteStream(outPath));
-  const size = statSync(outPath).size;
-  if (size < 5_000_000) throw new Error(`Archivo demasiado pequeño: ${size} bytes`);
-  console.log(`[jar-dl] ✅ ${Math.round(size / 1024 / 1024)}MB descargados`);
-}
+console.log('[jar-dl] Consultando GitHub API...');
+const api = await fetch('https://api.github.com/repos/abrensch/brouter/releases/latest', {
+  headers: { 'User-Agent': 'render-build/1.0' }
+});
+if (!api.ok) { console.error('[jar-dl] GitHub API HTTP', api.status); process.exit(1); }
 
-// 1. Try GitHub API to get the real latest release URL
-try {
-  console.log('[jar-dl] Consultando GitHub API...');
-  const api = await fetch('https://api.github.com/repos/abrensch/brouter/releases/latest', {
-    headers: { 'User-Agent': 'render-build/1.0' }
-  });
-  if (api.ok) {
-    const rel = await api.json();
-    const asset = rel.assets?.find(a => a.name.endsWith('.jar'));
-    if (asset) {
-      console.log(`[jar-dl] Release: ${rel.tag_name}, asset: ${asset.name}`);
-      await tryDownload(asset.browser_download_url, asset.name);
-      process.exit(0);
-    } else {
-      console.warn('[jar-dl] No se encontró .jar en el release:', rel.tag_name);
-      console.warn('[jar-dl] Assets:', rel.assets?.map(a => a.name).join(', '));
-    }
-  } else {
-    console.warn('[jar-dl] GitHub API HTTP', api.status);
-  }
-} catch (e) {
-  console.warn('[jar-dl] GitHub API falló:', e.message);
-}
+const rel = await api.json();
+console.log('[jar-dl] Release:', rel.tag_name);
+console.log('[jar-dl] Assets:', rel.assets?.map(a => a.name).join(', '));
 
-// 2. Fallback to direct URLs
-const fallbacks = [
-  'https://github.com/abrensch/brouter/releases/latest/download/brouter.jar',
-];
-for (const url of fallbacks) {
-  try {
-    await tryDownload(url);
-    process.exit(0);
-  } catch (e) {
-    console.warn(`[jar-dl] ⚠️ ${e.message}`);
-  }
-}
-process.exit(1);
+const asset = rel.assets?.find(a => a.name.endsWith('.zip') || a.name.endsWith('.jar'));
+if (!asset) { console.error('[jar-dl] No se encontró .zip ni .jar'); process.exit(1); }
+
+console.log('[jar-dl] Descargando:', asset.name, `(${Math.round(asset.size/1024/1024)}MB)`);
+const resp = await fetch(asset.browser_download_url, {
+  redirect: 'follow', headers: { 'User-Agent': 'render-build/1.0' }
+});
+if (!resp.ok) { console.error('[jar-dl] Download HTTP', resp.status); process.exit(1); }
+
+const destPath = asset.name.endsWith('.jar') ? `${outDir}/brouter.jar` : zipPath;
+await pipeline(resp.body, createWriteStream(destPath));
+console.log('[jar-dl] ✅ Descargado en', destPath);
 JSEOF
 
-node /tmp/download-jar.mjs "$BR_DIR/brouter.jar"
+node /tmp/download-jar.mjs "$BR_DIR"
 if [ $? -ne 0 ]; then
-  echo "❌ No se pudo descargar el JAR. Abortando build."
+  echo "❌ No se pudo descargar el release. Abortando build."
   exit 1
 fi
+
+# If we got a ZIP, extract the JAR from it
+if [ -f /tmp/brouter-release.zip ]; then
+  echo "📦 Extrayendo JAR del ZIP..."
+  # List contents to find the JAR
+  unzip -l /tmp/brouter-release.zip | grep '\.jar'
+  # Extract only the JAR file(s)
+  unzip -j /tmp/brouter-release.zip '*.jar' -d /tmp/brouter-jars/
+  # Copy the largest JAR as brouter.jar (the -all jar is the full one)
+  JAR_FILE=$(ls -S /tmp/brouter-jars/*.jar | head -1)
+  cp "$JAR_FILE" "$BR_DIR/brouter.jar"
+  rm -rf /tmp/brouter-release.zip /tmp/brouter-jars
+  echo "✅ JAR extraído: $JAR_FILE"
+fi
+
+# Validate
+file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
+if [ "$file_size" -lt 5000000 ]; then
+  echo "❌ JAR inválido o demasiado pequeño: $file_size bytes"
+  exit 1
+fi
+echo "✅ BRouter JAR listo ($((file_size / 1000000))MB)"
 
 PROFILES_BASE="https://raw.githubusercontent.com/abrensch/brouter/master/misc/profiles2"
 for profile in trekking fastbike mountainbike safety shortest; do
