@@ -55,7 +55,7 @@ echo "⬇️  Descargando $BROUTER_ZIP_URL"
 node --input-type=module << 'JSEOF'
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
-const url = process.env.BROUTER_ZIP_URL;
+const url = 'https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9.zip';
 const resp = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'render-build/1.0' } });
 console.log('[dl] HTTP', resp.status, url);
 if (!resp.ok) { console.error('[dl] Error HTTP', resp.status); process.exit(1); }
