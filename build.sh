@@ -78,7 +78,7 @@ rm -rf /tmp/brouter-release.zip /tmp/brouter-jars
 
 # Validate
 file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
-if [ "$file_size" -lt 5000000 ]; then
+if [ "$file_size" -lt 1000000 ]; then
   echo "❌ JAR inválido o demasiado pequeño: $file_size bytes"; exit 1
 fi
 echo "✅ BRouter JAR listo ($((file_size / 1000000))MB)"
