@@ -53,19 +53,22 @@ mkdir -p "$BR_DIR/profiles2"
 JAR_URLS=(
   "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar"
   "https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9-all.jar"
+  "https://brouter.de/brouter/brouter.jar"
 )
 
 jar_ok=0
 for url in "${JAR_URLS[@]}"; do
   echo "⬇️  Intentando descargar JAR desde: $url"
-  if curl -sSL --retry 3 --output "$BR_DIR/brouter.jar" "$url"; then
-    # Validate it's a real JAR (should start with PK in hex = 504b)
-    if file "$BR_DIR/brouter.jar" | grep -q 'Zip archive'; then
-      echo "✅ JAR válido descargado"
+  # Use -L to follow redirects, -H to spoof User-Agent (GitHub may block some requests)
+  if curl -sSL -H 'User-Agent: Mozilla/5.0' --retry 3 --output "$BR_DIR/brouter.jar" "$url"; then
+    # Check file size (should be at least 10MB for a valid JAR)
+    file_size=$(stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
+    if [ "$file_size" -gt 10000000 ]; then
+      echo "✅ JAR descargado válidamente (tamaño: $((file_size / 1000000))MB)"
       jar_ok=1
       break
     else
-      echo "⚠️ Descarga no es un JAR válido (Zip archive). Probando siguiente URL..."
+      echo "⚠️ Archivo demasiado pequeño ($file_size bytes). Probando siguiente URL..."
       rm -f "$BR_DIR/brouter.jar"
     fi
   else
