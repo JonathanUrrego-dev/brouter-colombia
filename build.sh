@@ -88,4 +88,8 @@ for profile in trekking fastbike mountainbike safety shortest; do
   curl -sL "${PROFILES_BASE}/${profile}.brf" -o "$BR_DIR/profiles2/${profile}.brf"
 done
 
+# Descargar lookups.dat para perfiles
+LOOKUPS_URL="https://raw.githubusercontent.com/abrensch/brouter/master/misc/profiles2/lookups.dat"
+curl -sL "$LOOKUPS_URL" -o "$BR_DIR/profiles2/lookups.dat"
+
 echo "✅ Build listo (archivos en $BR_DIR)."
