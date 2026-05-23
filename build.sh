@@ -59,20 +59,32 @@ JAR_URLS=(
 jar_ok=0
 for url in "${JAR_URLS[@]}"; do
   echo "⬇️  Intentando descargar JAR desde: $url"
-  # Use -L to follow redirects, -H to spoof User-Agent (GitHub may block some requests)
-  if curl -sSL -H 'User-Agent: Mozilla/5.0' --retry 3 --output "$BR_DIR/brouter.jar" "$url"; then
-    # Check file size (should be at least 10MB for a valid JAR)
-    file_size=$(stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
-    if [ "$file_size" -gt 10000000 ]; then
-      echo "✅ JAR descargado válidamente (tamaño: $((file_size / 1000000))MB)"
-      jar_ok=1
-      break
-    else
-      echo "⚠️ Archivo demasiado pequeño ($file_size bytes). Probando siguiente URL..."
-      rm -f "$BR_DIR/brouter.jar"
+  # Try wget first (better redirect handling)
+  if command -v wget &> /dev/null; then
+    if wget -q -O "$BR_DIR/brouter.jar" --user-agent='Mozilla/5.0' "$url" 2>/dev/null; then
+      file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
+      if [ "$file_size" -gt 10000000 ]; then
+        echo "✅ JAR descargado válidamente con wget (tamaño: $((file_size / 1000000))MB)"
+        jar_ok=1
+        break
+      else
+        echo "⚠️ Archivo pequeño ($file_size bytes). Probando siguiente URL..."
+        rm -f "$BR_DIR/brouter.jar"
+      fi
     fi
   else
-    echo "⚠️ Falló descarga desde $url"
+    # Fallback to curl if wget not available
+    if curl -fSsL --max-redirs 10 -o "$BR_DIR/brouter.jar" "$url" 2>/dev/null; then
+      file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
+      if [ "$file_size" -gt 10000000 ]; then
+        echo "✅ JAR descargado válidamente con curl (tamaño: $((file_size / 1000000))MB)"
+        jar_ok=1
+        break
+      else
+        echo "⚠️ Archivo pequeño ($file_size bytes). Probando siguiente URL..."
+        rm -f "$BR_DIR/brouter.jar"
+      fi
+    fi
   fi
 done
 
