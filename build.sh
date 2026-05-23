@@ -49,64 +49,37 @@ java -version || true
 echo "📥 Descargando BRouter JAR y perfiles..."
 mkdir -p "$BR_DIR/profiles2"
 
-# Use Node.js to find and download the release ZIP from GitHub API
-cat > /tmp/download-jar.mjs << 'JSEOF'
+# Download brouter ZIP directly (known URL from v1.7.9 release)
+BROUTER_ZIP_URL="https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9.zip"
+echo "⬇️  Descargando $BROUTER_ZIP_URL"
+node --input-type=module << 'JSEOF'
 import { createWriteStream } from 'fs';
-import { statSync } from 'fs';
 import { pipeline } from 'stream/promises';
-
-const outDir = process.argv[2]; // e.g. /opt/render/project/src/brouter
-const zipPath = '/tmp/brouter-release.zip';
-
-console.log('[jar-dl] Consultando GitHub API...');
-const api = await fetch('https://api.github.com/repos/abrensch/brouter/releases/latest', {
-  headers: { 'User-Agent': 'render-build/1.0' }
-});
-if (!api.ok) { console.error('[jar-dl] GitHub API HTTP', api.status); process.exit(1); }
-
-const rel = await api.json();
-console.log('[jar-dl] Release:', rel.tag_name);
-console.log('[jar-dl] Assets:', rel.assets?.map(a => a.name).join(', '));
-
-const asset = rel.assets?.find(a => a.name.endsWith('.zip') || a.name.endsWith('.jar'));
-if (!asset) { console.error('[jar-dl] No se encontró .zip ni .jar'); process.exit(1); }
-
-console.log('[jar-dl] Descargando:', asset.name, `(${Math.round(asset.size/1024/1024)}MB)`);
-const resp = await fetch(asset.browser_download_url, {
-  redirect: 'follow', headers: { 'User-Agent': 'render-build/1.0' }
-});
-if (!resp.ok) { console.error('[jar-dl] Download HTTP', resp.status); process.exit(1); }
-
-const destPath = asset.name.endsWith('.jar') ? `${outDir}/brouter.jar` : zipPath;
-await pipeline(resp.body, createWriteStream(destPath));
-console.log('[jar-dl] ✅ Descargado en', destPath);
+const url = process.env.BROUTER_ZIP_URL;
+const resp = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'render-build/1.0' } });
+console.log('[dl] HTTP', resp.status, url);
+if (!resp.ok) { console.error('[dl] Error HTTP', resp.status); process.exit(1); }
+await pipeline(resp.body, createWriteStream('/tmp/brouter-release.zip'));
+const { statSync } = await import('fs');
+const sz = statSync('/tmp/brouter-release.zip').size;
+console.log('[dl] ✅', Math.round(sz/1024/1024) + 'MB descargados');
+if (sz < 1000000) { console.error('[dl] Archivo demasiado pequeño:', sz, 'bytes'); process.exit(1); }
 JSEOF
+if [ $? -ne 0 ]; then echo "❌ Descarga fallida"; exit 1; fi
 
-node /tmp/download-jar.mjs "$BR_DIR"
-if [ $? -ne 0 ]; then
-  echo "❌ No se pudo descargar el release. Abortando build."
-  exit 1
-fi
-
-# If we got a ZIP, extract the JAR from it
-if [ -f /tmp/brouter-release.zip ]; then
-  echo "📦 Extrayendo JAR del ZIP..."
-  # List contents to find the JAR
-  unzip -l /tmp/brouter-release.zip | grep '\.jar'
-  # Extract only the JAR file(s)
-  unzip -j /tmp/brouter-release.zip '*.jar' -d /tmp/brouter-jars/
-  # Copy the largest JAR as brouter.jar (the -all jar is the full one)
-  JAR_FILE=$(ls -S /tmp/brouter-jars/*.jar | head -1)
-  cp "$JAR_FILE" "$BR_DIR/brouter.jar"
-  rm -rf /tmp/brouter-release.zip /tmp/brouter-jars
-  echo "✅ JAR extraído: $JAR_FILE"
-fi
+# Extract the largest JAR from the ZIP
+echo "📦 Extrayendo JAR del ZIP..."
+unzip -l /tmp/brouter-release.zip | grep '\.jar'
+mkdir -p /tmp/brouter-jars
+unzip -j /tmp/brouter-release.zip '*.jar' -d /tmp/brouter-jars/
+JAR_FILE=$(ls -S /tmp/brouter-jars/*.jar | head -1)
+cp "$JAR_FILE" "$BR_DIR/brouter.jar"
+rm -rf /tmp/brouter-release.zip /tmp/brouter-jars
 
 # Validate
 file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
 if [ "$file_size" -lt 5000000 ]; then
-  echo "❌ JAR inválido o demasiado pequeño: $file_size bytes"
-  exit 1
+  echo "❌ JAR inválido o demasiado pequeño: $file_size bytes"; exit 1
 fi
 echo "✅ BRouter JAR listo ($((file_size / 1000000))MB)"
 
