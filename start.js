@@ -9,12 +9,13 @@ import path from 'path';
 const isRender = process.env.RENDER === 'true' || existsSync('/opt/render');
 const baseDir = isRender ? '/opt/render/project/src/brouter' : path.join(process.cwd(), 'brouter');
 
-const BROUTER_DIR  = process.env.BROUTER_DIR  || baseDir;
-const TILES_DIR    = process.env.TILES_DIR    || (isRender ? '/opt/render/project/src/segments4' : path.join(process.cwd(), 'segments4'));
+// On Render, ignore Windows paths from .env and use Linux paths instead
+const BROUTER_DIR  = isRender ? baseDir : (process.env.BROUTER_DIR || baseDir);
+const TILES_DIR    = isRender ? '/opt/render/project/src/segments4' : (process.env.TILES_DIR || path.join(process.cwd(), 'segments4'));
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
-const BROUTER_JAR  = process.env.BROUTER_JAR  || path.join(BROUTER_DIR, 'brouter.jar');
-const PROFILES_DIR = process.env.PROFILES_DIR || path.join(BROUTER_DIR, 'profiles2');
-const JAVA_BIN     = process.env.JAVA_BIN     || path.join(BROUTER_DIR, 'jre', 'bin', 'java');
+const BROUTER_JAR  = isRender ? path.join(BROUTER_DIR, 'brouter.jar') : (process.env.BROUTER_JAR || path.join(BROUTER_DIR, 'brouter.jar'));
+const PROFILES_DIR = isRender ? path.join(BROUTER_DIR, 'profiles2') : (process.env.PROFILES_DIR || path.join(BROUTER_DIR, 'profiles2'));
+const JAVA_BIN     = isRender ? path.join(BROUTER_DIR, 'jre', 'bin', 'java') : (process.env.JAVA_BIN || path.join(BROUTER_DIR, 'jre', 'bin', 'java'));
 const BROUTER_PORT = parseInt(process.env.BROUTER_INTERNAL_PORT || '17777', 10);
 const JAVA_XMX     = process.env.JAVA_XMX || '900m';
 const JAVA_XMS     = process.env.JAVA_XMS || '256m';
