@@ -34,10 +34,16 @@ async function downloadTile(filename) {
   const r2Url = `${R2_PUBLIC_URL}/${filename}`;
   console.log(`[start] ⬇️  Descargando ${filename}...`);
 
-  let res = await fetch(r2Url).catch(() => null);
+  let res = await fetch(r2Url).catch((err) => {
+    console.warn(`[start] ⚠️  R2 error para ${filename}: ${err.message}`);
+    return null;
+  });
 
   if (!res || !res.ok) {
-    console.warn(`[start] ⚠️  R2 falló para ${filename}, intentando brouter.de...`);
+    if (res) {
+      console.warn(`[start] ⚠️  R2 HTTP ${res.status} para ${filename} (${r2Url})`);
+    }
+    console.warn(`[start] ℹ️  Fallback a brouter.de...`);
     res = await fetch(`https://brouter.de/brouter/segments4/${filename}`);
   }
 
