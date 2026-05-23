@@ -49,42 +49,45 @@ java -version || true
 echo "📥 Descargando BRouter JAR y perfiles..."
 mkdir -p "$BR_DIR/profiles2"
 
-# Download JAR with validation and retry
+# Download JAR using Node.js fetch (handles redirects reliably)
+# Try several sources in order
 JAR_URLS=(
-  "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar"
   "https://github.com/abrensch/brouter/releases/download/v1.7.9/brouter-1.7.9-all.jar"
-  "https://brouter.de/brouter/brouter.jar"
+  "https://github.com/abrensch/brouter/releases/latest/download/brouter.jar"
+  "https://repo1.maven.org/maven2/de/cm/btools/brouter/1.7.9/brouter-1.7.9.jar"
 )
 
 jar_ok=0
 for url in "${JAR_URLS[@]}"; do
   echo "⬇️  Intentando descargar JAR desde: $url"
-  # Try wget first (better redirect handling)
-  if command -v wget &> /dev/null; then
-    if wget -q -O "$BR_DIR/brouter.jar" --user-agent='Mozilla/5.0' "$url" 2>/dev/null; then
-      file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
-      if [ "$file_size" -gt 10000000 ]; then
-        echo "✅ JAR descargado válidamente con wget (tamaño: $((file_size / 1000000))MB)"
-        jar_ok=1
-        break
-      else
-        echo "⚠️ Archivo pequeño ($file_size bytes). Probando siguiente URL..."
-        rm -f "$BR_DIR/brouter.jar"
-      fi
+  node --input-type=module << JSEOF
+import { createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
+const url = '${url}';
+try {
+  const resp = await fetch(url, { redirect: 'follow' });
+  console.log('[jar-dl] HTTP', resp.status, 'desde', url);
+  if (!resp.ok) process.exit(1);
+  await pipeline(resp.body, createWriteStream('${BR_DIR}/brouter.jar'));
+  console.log('[jar-dl] Descarga completa');
+} catch(e) {
+  console.error('[jar-dl] Error:', e.message);
+  process.exit(1);
+}
+JSEOF
+  if [ $? -eq 0 ]; then
+    file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
+    if [ "$file_size" -gt 5000000 ]; then
+      echo "✅ JAR válido ($((file_size / 1000000))MB)"
+      jar_ok=1
+      break
+    else
+      echo "⚠️ Archivo demasiado pequeño: ${file_size} bytes"
+      rm -f "$BR_DIR/brouter.jar"
     fi
   else
-    # Fallback to curl if wget not available
-    if curl -fSsL --max-redirs 10 -o "$BR_DIR/brouter.jar" "$url" 2>/dev/null; then
-      file_size=$(stat -c%s "$BR_DIR/brouter.jar" 2>/dev/null || stat -f%z "$BR_DIR/brouter.jar" 2>/dev/null || echo 0)
-      if [ "$file_size" -gt 10000000 ]; then
-        echo "✅ JAR descargado válidamente con curl (tamaño: $((file_size / 1000000))MB)"
-        jar_ok=1
-        break
-      else
-        echo "⚠️ Archivo pequeño ($file_size bytes). Probando siguiente URL..."
-        rm -f "$BR_DIR/brouter.jar"
-      fi
-    fi
+    echo "⚠️ Falló descarga desde $url"
+    rm -f "$BR_DIR/brouter.jar"
   fi
 done
 
